@@ -22,10 +22,14 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: local
       DB_URL: jdbc:postgresql://db:5432/financecopilot
-      # Phase 0: no finance_app/finance_ro roles exist yet (created in Phase 1 migrations),
-      # so the app connects as the Postgres superuser for now.
-      DB_APP_USERNAME: ${DB_SUPERUSER:-postgres}
-      DB_APP_PASSWORD: ${DB_SUPERUSER_PASSWORD:-postgres}
+      # App runtime datasource: least-privilege finance_app role (created by Flyway below).
+      DB_APP_USERNAME: ${DB_APP_USERNAME:-finance_app}
+      DB_APP_PASSWORD: ${DB_APP_PASSWORD:-changeme}
+      DB_RO_PASSWORD: ${DB_RO_PASSWORD:-changeme}
+      # Flyway migration datasource: elevated (superuser) credentials, since migrations
+      # create the finance_ro/finance_app roles themselves.
+      DB_SUPERUSER: ${DB_SUPERUSER:-postgres}
+      DB_SUPERUSER_PASSWORD: ${DB_SUPERUSER_PASSWORD:-postgres}
       AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT:-}
       AZURE_OPENAI_API_KEY: ${AZURE_OPENAI_API_KEY:-}
     depends_on:

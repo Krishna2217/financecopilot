@@ -13,6 +13,9 @@ spring:
   flyway:
     enabled: true
     baseline-on-migrate: true
+    placeholders:
+      financeRoPassword: ${DB_RO_PASSWORD:changeme}
+      financeAppPassword: ${DB_APP_PASSWORD:changeme}
 
 server:
   port: 8080
@@ -60,6 +63,12 @@ spring:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/financecopilot}
     username: ${DB_APP_USERNAME:finance_app}
     password: ${DB_APP_PASSWORD:changeme}
+  flyway:
+    # Migrations create the finance_ro/finance_app roles themselves, so they need
+    # elevated (superuser) credentials distinct from the app's own runtime datasource.
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/financecopilot}
+    user: ${DB_SUPERUSER:postgres}
+    password: ${DB_SUPERUSER_PASSWORD:postgres}
   ai:
     vectorstore:
       pgvector:
@@ -78,6 +87,10 @@ spring:
     url: ${DB_URL}
     username: ${DB_APP_USERNAME}
     password: ${DB_APP_PASSWORD}
+  flyway:
+    url: ${DB_URL}
+    user: ${DB_SUPERUSER}
+    password: ${DB_SUPERUSER_PASSWORD}
   ai:
     azure:
       openai:
@@ -100,6 +113,10 @@ spring:
     url: ${DB_URL}
     username: ${DB_APP_USERNAME}
     password: ${DB_APP_PASSWORD}
+  flyway:
+    url: ${DB_URL}
+    user: ${DB_SUPERUSER}
+    password: ${DB_SUPERUSER_PASSWORD}
   ai:
     azure:
       openai:
