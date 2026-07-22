@@ -1,0 +1,119 @@
+spring:
+  application:
+    name: financecopilot
+  profiles:
+    active: local
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: false
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+logging:
+  pattern:
+    level: "%5p [traceId=%X{traceId} requestId=%X{requestId}]"
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+  # No Azure OpenAI credentials are required to boot locally in Phase 0.
+  # ChatClient beans are wired in Phase 2 once credentials are available.
+  autoconfigure:
+    exclude:
+      - org.springframework.ai.model.azure.openai.autoconfigure.AzureOpenAiChatAutoConfiguration
+      - org.springframework.ai.model.azure.openai.autoconfigure.AzureOpenAiEmbeddingAutoConfiguration
+      - org.springframework.ai.model.azure.openai.autoconfigure.AzureOpenAiImageAutoConfiguration
+      - org.springframework.ai.model.azure.openai.autoconfigure.AzureOpenAiAudioTranscriptionAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiChatAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiEmbeddingAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiImageAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiAudioTranscriptionAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiAudioSpeechAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiModerationAutoConfiguration
+      - org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/financecopilot}
+    username: ${DB_APP_USERNAME:finance_app}
+    password: ${DB_APP_PASSWORD:changeme}
+  ai:
+    vectorstore:
+      pgvector:
+        initialize-schema: true
+
+logging:
+  level:
+    com.microsoft.financecopilot: DEBUG
+
+---
+spring:
+  config:
+    activate:
+      on-profile: dev
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_APP_USERNAME}
+    password: ${DB_APP_PASSWORD}
+  ai:
+    azure:
+      openai:
+        endpoint: ${AZURE_OPENAI_ENDPOINT}
+        api-key: ${AZURE_OPENAI_API_KEY}
+    vectorstore:
+      pgvector:
+        initialize-schema: true
+
+logging:
+  level:
+    com.microsoft.financecopilot: INFO
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_APP_USERNAME}
+    password: ${DB_APP_PASSWORD}
+  ai:
+    azure:
+      openai:
+        endpoint: ${AZURE_OPENAI_ENDPOINT}
+        api-key: ${AZURE_OPENAI_API_KEY}
+    vectorstore:
+      pgvector:
+        initialize-schema: false
+
+management:
+  endpoint:
+    health:
+      show-details: never
+
+logging:
+  level:
+    com.microsoft.financecopilot: WARN

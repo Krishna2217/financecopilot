@@ -1,0 +1,36 @@
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_DB: financecopilot
+      POSTGRES_USER: ${DB_SUPERUSER:-postgres}
+      POSTGRES_PASSWORD: ${DB_SUPERUSER_PASSWORD:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - financecopilot-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_SUPERUSER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      DB_URL: jdbc:postgresql://db:5432/financecopilot
+      # Phase 0: no finance_app/finance_ro roles exist yet (created in Phase 1 migrations),
+      # so the app connects as the Postgres superuser for now.
+      DB_APP_USERNAME: ${DB_SUPERUSER:-postgres}
+      DB_APP_PASSWORD: ${DB_SUPERUSER_PASSWORD:-postgres}
+      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT:-}
+      AZURE_OPENAI_API_KEY: ${AZURE_OPENAI_API_KEY:-}
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  financecopilot-db-data:

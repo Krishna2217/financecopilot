@@ -1,0 +1,9 @@
+target/
+.env
+*.log
+.DS_Store
+.idea/
+*.iml
+node_modules/
+frontend/dist/
+.mvn/wrapper/maven-wrapper.jar
