@@ -20,6 +20,25 @@ spring:
 server:
   port: 8080
 
+app:
+  sql-safety:
+    datasource-url: ${DB_URL:jdbc:postgresql://localhost:5432/financecopilot}
+    username: ${DB_RO_USERNAME:finance_ro}
+    password: ${DB_RO_PASSWORD:changeme}
+    max-limit: 1000
+    statement-timeout: 5s
+    allowed-schema: analytics
+  ai:
+    nl2sql:
+      deployment-name: ${AZURE_OPENAI_CHAT_DEPLOYMENT:gpt-4o}
+      temperature: 0.0
+    anomaly:
+      deployment-name: ${AZURE_OPENAI_CHAT_DEPLOYMENT:gpt-4o}
+      temperature: 0.2
+    report:
+      deployment-name: ${AZURE_OPENAI_CHAT_DEPLOYMENT:gpt-4o}
+      temperature: 0.3
+
 management:
   endpoints:
     web:
@@ -74,6 +93,12 @@ spring:
       pgvector:
         initialize-schema: true
 
+app:
+  ai:
+    # No ChatModel bean exists locally without Azure/OpenAI credentials (see the
+    # autoconfiguration exclusions above); ChatClientConfig is gated by this flag.
+    enabled: false
+
 logging:
   level:
     com.microsoft.financecopilot: DEBUG
@@ -100,6 +125,10 @@ spring:
       pgvector:
         initialize-schema: true
 
+app:
+  sql-safety:
+    datasource-url: ${DB_URL}
+
 logging:
   level:
     com.microsoft.financecopilot: INFO
@@ -125,6 +154,10 @@ spring:
     vectorstore:
       pgvector:
         initialize-schema: false
+
+app:
+  sql-safety:
+    datasource-url: ${DB_URL}
 
 management:
   endpoint:
