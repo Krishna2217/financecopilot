@@ -20,7 +20,15 @@
   <properties>
     <java.version>21</java.version>
     <spring-ai.version>1.0.9</spring-ai.version>
-    <springdoc.version>2.6.0</springdoc.version>
+    <!-- 2.6.0 predates Spring Framework 6.2's ControllerAdviceBean API change (Spring Boot 3.4.x
+         pulls in Framework 6.2), causing a NoSuchMethodError once any real @RestController route
+         + the @RestControllerAdvice are both active and springdoc tries to build responses.
+         3.0.x targets Spring Boot 4 (duplicate autoconfiguration beans against Boot 3.4).
+         2.8.15+ has its own regression: an invalid swagger-ui resource pattern
+         ("/swagger-ui/**/*swagger-initializer.js") that Spring 3.4's PathPatternParser rejects,
+         not fixable via spring.mvc.pathmatch.matching-strategy (see springdoc/springdoc-openapi#3210) —
+         2.8.14 is the last unaffected 2.x release. -->
+    <springdoc.version>2.8.14</springdoc.version>
     <jsqlparser.version>4.9</jsqlparser.version>
     <testcontainers.version>1.21.4</testcontainers.version>
   </properties>
@@ -43,6 +51,14 @@
         <type>pom</type>
         <scope>import</scope>
       </dependency>
+      <!-- spring-ai-client-chat pulls swagger-annotations-jakarta:2.2.30 directly, which wins
+           Maven's nearest-wins mediation over the 2.2.38 that springdoc's swagger-core-jakarta
+           requires, splitting the classpath (NoSuchMethodError: Schema.$dynamicRef at runtime). -->
+      <dependency>
+        <groupId>io.swagger.core.v3</groupId>
+        <artifactId>swagger-annotations-jakarta</artifactId>
+        <version>2.2.38</version>
+      </dependency>
     </dependencies>
   </dependencyManagement>
 
@@ -59,6 +75,14 @@
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-data-jpa</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-cache</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.github.ben-manes.caffeine</groupId>
+      <artifactId>caffeine</artifactId>
     </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
