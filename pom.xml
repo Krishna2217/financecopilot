@@ -22,11 +22,21 @@
     <spring-ai.version>1.0.9</spring-ai.version>
     <springdoc.version>2.6.0</springdoc.version>
     <jsqlparser.version>4.9</jsqlparser.version>
+    <testcontainers.version>1.21.4</testcontainers.version>
   </properties>
 
   <dependencyManagement>
     <dependencies>
       <dependency>
+        <groupId>org.testcontainers</groupId>
+        <artifactId>testcontainers-bom</artifactId>
+        <version>${testcontainers.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <!-- Declared after testcontainers-bom so its Testcontainers version pin (older, and
+             incompatible with recent Docker Desktop's API-version negotiation) doesn't win. -->
         <groupId>org.springframework.ai</groupId>
         <artifactId>spring-ai-bom</artifactId>
         <version>${spring-ai.version}</version>
