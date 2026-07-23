@@ -2,6 +2,7 @@ package com.microsoft.financecopilot.sql;
 
 import com.microsoft.financecopilot.common.exception.SqlExecutionException;
 import com.microsoft.financecopilot.config.SqlSafetyProperties;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
@@ -11,6 +12,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import javax.sql.DataSource;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
@@ -25,15 +27,19 @@ public class SqlExecutor {
 
   private final DataSource financeReadOnlyDataSource;
   private final SqlSafetyProperties properties;
+  private final MeterRegistry meterRegistry;
 
   public SqlExecutor(
       @Qualifier("financeReadOnlyDataSource") DataSource financeReadOnlyDataSource,
-      SqlSafetyProperties properties) {
+      SqlSafetyProperties properties,
+      MeterRegistry meterRegistry) {
     this.financeReadOnlyDataSource = financeReadOnlyDataSource;
     this.properties = properties;
+    this.meterRegistry = meterRegistry;
   }
 
   public QueryResult execute(String validatedSql) {
+    long startNanos = System.nanoTime();
     try (Connection connection = financeReadOnlyDataSource.getConnection()) {
       connection.setAutoCommit(false);
       try (Statement statement = connection.createStatement()) {
@@ -50,6 +56,10 @@ public class SqlExecutor {
       }
     } catch (SQLException e) {
       throw new SqlExecutionException("Failed to execute SQL: " + e.getMessage());
+    } finally {
+      meterRegistry
+          .timer("sql.exec.ms")
+          .record(System.nanoTime() - startNanos, TimeUnit.NANOSECONDS);
     }
   }
 

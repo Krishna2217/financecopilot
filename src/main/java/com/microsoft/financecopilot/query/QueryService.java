@@ -6,6 +6,7 @@ import com.microsoft.financecopilot.query.dto.QueryResponse;
 import com.microsoft.financecopilot.sql.QueryResult;
 import com.microsoft.financecopilot.sql.SqlExecutor;
 import com.microsoft.financecopilot.sql.SqlSafetyValidator;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Instant;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.ResponseEntity;
@@ -38,21 +39,33 @@ public class QueryService {
   private final SqlSafetyValidator sqlSafetyValidator;
   private final SqlExecutor sqlExecutor;
   private final QueryHistoryRepository queryHistoryRepository;
+  private final MeterRegistry meterRegistry;
 
   public QueryService(
       @Qualifier("nl2sqlChatClient") ChatClient nl2sqlChatClient,
       @Qualifier("reportChatClient") ChatClient reportChatClient,
       SqlSafetyValidator sqlSafetyValidator,
       SqlExecutor sqlExecutor,
-      QueryHistoryRepository queryHistoryRepository) {
+      QueryHistoryRepository queryHistoryRepository,
+      MeterRegistry meterRegistry) {
     this.nl2sqlChatClient = nl2sqlChatClient;
     this.reportChatClient = reportChatClient;
     this.sqlSafetyValidator = sqlSafetyValidator;
     this.sqlExecutor = sqlExecutor;
     this.queryHistoryRepository = queryHistoryRepository;
+    this.meterRegistry = meterRegistry;
   }
 
   public QueryResponse executeQuery(String naturalLanguageQuery) {
+    try {
+      return doExecuteQuery(naturalLanguageQuery);
+    } catch (RuntimeException e) {
+      meterRegistry.counter("query.errors.count").increment();
+      throw e;
+    }
+  }
+
+  private QueryResponse doExecuteQuery(String naturalLanguageQuery) {
     long startMs = System.currentTimeMillis();
 
     ResponseEntity<ChatResponse, GeneratedSql> nl2sqlResponse =

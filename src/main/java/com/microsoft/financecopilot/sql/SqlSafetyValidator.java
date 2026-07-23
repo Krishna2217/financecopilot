@@ -2,6 +2,7 @@ package com.microsoft.financecopilot.sql;
 
 import com.microsoft.financecopilot.common.exception.SqlSafetyViolationException;
 import com.microsoft.financecopilot.config.SqlSafetyProperties;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -64,14 +65,28 @@ public class SqlSafetyValidator {
 
   private final SchemaIntrospector schemaIntrospector;
   private final SqlSafetyProperties properties;
+  private final MeterRegistry meterRegistry;
 
-  public SqlSafetyValidator(SchemaIntrospector schemaIntrospector, SqlSafetyProperties properties) {
+  public SqlSafetyValidator(
+      SchemaIntrospector schemaIntrospector,
+      SqlSafetyProperties properties,
+      MeterRegistry meterRegistry) {
     this.schemaIntrospector = schemaIntrospector;
     this.properties = properties;
+    this.meterRegistry = meterRegistry;
   }
 
   /** Returns the (possibly limit-rewritten) SQL text that is safe to execute. */
   public String validate(String rawSql) {
+    try {
+      return doValidate(rawSql);
+    } catch (SqlSafetyViolationException e) {
+      meterRegistry.counter("sql.rejected.count").increment();
+      throw e;
+    }
+  }
+
+  private String doValidate(String rawSql) {
     if (rawSql == null || rawSql.isBlank()) {
       throw new SqlSafetyViolationException("SQL must not be blank");
     }

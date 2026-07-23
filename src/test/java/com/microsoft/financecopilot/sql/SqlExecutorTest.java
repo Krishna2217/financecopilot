@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 
 import com.microsoft.financecopilot.common.exception.SqlExecutionException;
 import com.microsoft.financecopilot.config.SqlSafetyProperties;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
@@ -33,6 +34,7 @@ class SqlExecutorTest {
   @Mock private ResultSetMetaData resultSetMetaData;
 
   private SqlExecutor executor;
+  private SimpleMeterRegistry meterRegistry;
 
   @BeforeEach
   void setUp() throws SQLException {
@@ -44,7 +46,8 @@ class SqlExecutorTest {
             1000,
             Duration.ofSeconds(5),
             "analytics");
-    executor = new SqlExecutor(dataSource, properties);
+    meterRegistry = new SimpleMeterRegistry();
+    executor = new SqlExecutor(dataSource, properties, meterRegistry);
 
     when(dataSource.getConnection()).thenReturn(connection);
     when(connection.createStatement()).thenReturn(statement);
@@ -67,6 +70,8 @@ class SqlExecutorTest {
     assertThat(result.columns()).containsExactly("name");
     assertThat(result.rows()).hasSize(1);
     assertThat(result.rows().get(0)).containsEntry("name", "Groceries");
+    assertThat(meterRegistry.find("sql.exec.ms").timer()).isNotNull();
+    assertThat(meterRegistry.find("sql.exec.ms").timer().count()).isEqualTo(1);
   }
 
   @Test
@@ -78,5 +83,7 @@ class SqlExecutorTest {
         .hasMessageContaining("Failed to execute SQL");
 
     verify(connection).rollback();
+    // sql.exec.ms is recorded even on failure, so latency of failed executions is still visible.
+    assertThat(meterRegistry.find("sql.exec.ms").timer().count()).isEqualTo(1);
   }
 }

@@ -16,6 +16,7 @@ import com.microsoft.financecopilot.query.dto.QueryResponse;
 import com.microsoft.financecopilot.sql.QueryResult;
 import com.microsoft.financecopilot.sql.SqlExecutor;
 import com.microsoft.financecopilot.sql.SqlSafetyValidator;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -49,6 +50,7 @@ class QueryServiceTest {
   private ChatClient.CallResponseSpec reportCallSpec;
 
   private QueryService queryService;
+  private SimpleMeterRegistry meterRegistry;
 
   @BeforeEach
   void setUp() {
@@ -63,13 +65,15 @@ class QueryServiceTest {
     reportRequestSpec = mock(ChatClient.ChatClientRequestSpec.class);
     reportCallSpec = mock(ChatClient.CallResponseSpec.class);
 
+    meterRegistry = new SimpleMeterRegistry();
     queryService =
         new QueryService(
             nl2sqlChatClient,
             reportChatClient,
             sqlSafetyValidator,
             sqlExecutor,
-            queryHistoryRepository);
+            queryHistoryRepository,
+            meterRegistry);
   }
 
   @Test
@@ -123,6 +127,7 @@ class QueryServiceTest {
     assertThat(persisted.getCompletionTokens()).isEqualTo(20);
     assertThat(persisted.getRowsReturned()).isEqualTo(1);
     assertThat(persisted.getTablesUsed()).containsExactly("transactions");
+    assertThat(meterRegistry.find("query.errors.count").counter()).isNull();
   }
 
   @Test
@@ -140,6 +145,7 @@ class QueryServiceTest {
 
     verify(sqlExecutor, never()).execute(anyString());
     verify(queryHistoryRepository, never()).save(any());
+    assertThat(meterRegistry.find("query.errors.count").counter().count()).isEqualTo(1);
   }
 
   @Test
@@ -160,6 +166,7 @@ class QueryServiceTest {
         .isInstanceOf(SqlExecutionException.class);
 
     verify(queryHistoryRepository, never()).save(any());
+    assertThat(meterRegistry.find("query.errors.count").counter().count()).isEqualTo(1);
   }
 
   @Test
@@ -173,5 +180,6 @@ class QueryServiceTest {
     verify(sqlSafetyValidator, never()).validate(anyString());
     verify(sqlExecutor, never()).execute(anyString());
     verify(queryHistoryRepository, never()).save(any());
+    assertThat(meterRegistry.find("query.errors.count").counter().count()).isEqualTo(1);
   }
 }

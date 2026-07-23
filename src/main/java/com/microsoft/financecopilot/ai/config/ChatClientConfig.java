@@ -3,6 +3,7 @@ package com.microsoft.financecopilot.ai.config;
 import com.microsoft.financecopilot.ai.advisor.PromptGuardAdvisor;
 import com.microsoft.financecopilot.ai.advisor.TokenUsageAdvisor;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.observation.ObservationRegistry;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvisor;
 import org.springframework.ai.chat.model.ChatModel;
@@ -38,10 +39,15 @@ public class ChatClientConfig {
 
   private final PromptProperties promptProperties;
   private final MeterRegistry meterRegistry;
+  private final ObservationRegistry observationRegistry;
 
-  public ChatClientConfig(PromptProperties promptProperties, MeterRegistry meterRegistry) {
+  public ChatClientConfig(
+      PromptProperties promptProperties,
+      MeterRegistry meterRegistry,
+      ObservationRegistry observationRegistry) {
     this.promptProperties = promptProperties;
     this.meterRegistry = meterRegistry;
+    this.observationRegistry = observationRegistry;
   }
 
   @Bean
@@ -52,7 +58,8 @@ public class ChatClientConfig {
         QuestionAnswerAdvisor.builder(vectorStore)
             .searchRequest(SearchRequest.builder().topK(8).build())
             .build();
-    return ChatClient.builder(chatModel)
+    return ChatClient.builder(
+            chatModel, observationRegistry, new UseCaseTaggingObservationConvention("nl2sql"))
         .defaultSystem(new PromptTemplate(promptProperties.nl2sql()).render())
         .defaultAdvisors(
             promptGuardAdvisor, schemaRagAdvisor, new TokenUsageAdvisor(meterRegistry, "nl2sql"))
@@ -62,7 +69,8 @@ public class ChatClientConfig {
   @Bean
   @Qualifier("anomalyChatClient")
   public ChatClient anomalyChatClient(ChatModel chatModel, PromptGuardAdvisor promptGuardAdvisor) {
-    return ChatClient.builder(chatModel)
+    return ChatClient.builder(
+            chatModel, observationRegistry, new UseCaseTaggingObservationConvention("anomaly"))
         .defaultSystem(new PromptTemplate(promptProperties.anomalyExplain()).render())
         .defaultAdvisors(promptGuardAdvisor, new TokenUsageAdvisor(meterRegistry, "anomaly"))
         .build();
@@ -80,7 +88,8 @@ public class ChatClientConfig {
                     .filterExpression(new FilterExpressionBuilder().eq("type", "glossary").build())
                     .build())
             .build();
-    return ChatClient.builder(chatModel)
+    return ChatClient.builder(
+            chatModel, observationRegistry, new UseCaseTaggingObservationConvention("report"))
         .defaultSystem(new PromptTemplate(promptProperties.execReport()).render())
         .defaultAdvisors(
             promptGuardAdvisor, glossaryRagAdvisor, new TokenUsageAdvisor(meterRegistry, "report"))

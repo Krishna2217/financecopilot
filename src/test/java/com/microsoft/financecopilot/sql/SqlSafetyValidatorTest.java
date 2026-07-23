@@ -6,6 +6,7 @@ import static org.mockito.Mockito.lenient;
 
 import com.microsoft.financecopilot.common.exception.SqlSafetyViolationException;
 import com.microsoft.financecopilot.config.SqlSafetyProperties;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Duration;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,6 +21,7 @@ class SqlSafetyValidatorTest {
   @Mock private SchemaIntrospector schemaIntrospector;
 
   private SqlSafetyValidator validator;
+  private SimpleMeterRegistry meterRegistry;
 
   @BeforeEach
   void setUp() {
@@ -42,7 +44,8 @@ class SqlSafetyValidatorTest {
             Duration.ofSeconds(5),
             "analytics");
 
-    validator = new SqlSafetyValidator(schemaIntrospector, properties);
+    meterRegistry = new SimpleMeterRegistry();
+    validator = new SqlSafetyValidator(schemaIntrospector, properties, meterRegistry);
   }
 
   // --- Structural / multi-statement ---
@@ -100,6 +103,16 @@ class SqlSafetyValidatorTest {
     assertThatThrownBy(() -> validator.validate("EXPLAIN SELECT * FROM analytics.accounts"))
         .isInstanceOf(SqlSafetyViolationException.class)
         .hasMessageContaining("Only SELECT statements are allowed");
+  }
+
+  @Test
+  void publishesSqlRejectedCountMetricOnEveryRejection() {
+    assertThatThrownBy(() -> validator.validate("DROP TABLE analytics.accounts"))
+        .isInstanceOf(SqlSafetyViolationException.class);
+    assertThatThrownBy(() -> validator.validate("DELETE FROM analytics.transactions"))
+        .isInstanceOf(SqlSafetyViolationException.class);
+
+    assertThat(meterRegistry.find("sql.rejected.count").counter().count()).isEqualTo(2);
   }
 
   // --- Forbidden DDL/DML/etc tokens ---

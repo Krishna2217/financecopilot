@@ -5,6 +5,7 @@ import static org.mockito.Mockito.mock;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.observation.ObservationRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
@@ -60,6 +61,11 @@ class ChatClientConfigTest {
     @Bean
     VectorStore vectorStore() {
       return mock(VectorStore.class);
+    }
+
+    @Bean
+    ObservationRegistry observationRegistry() {
+      return ObservationRegistry.create();
     }
 
     @Bean
