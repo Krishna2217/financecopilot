@@ -71,6 +71,13 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     return lastDot >= 0 ? path.substring(lastDot + 1) : path;
   }
 
+  @ExceptionHandler(ResourceNotFoundException.class)
+  public ProblemDetail handleResourceNotFound(ResourceNotFoundException ex) {
+    ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+    problem.setTitle("Not Found");
+    return problem;
+  }
+
   @ExceptionHandler(PromptGuardViolationException.class)
   public ProblemDetail handlePromptGuardViolation(PromptGuardViolationException ex) {
     log.warn("Prompt guard rejected request: {}", ex.getMessage());
