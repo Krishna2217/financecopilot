@@ -9,6 +9,7 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -69,10 +70,20 @@ public class ChatClientConfig {
 
   @Bean
   @Qualifier("reportChatClient")
-  public ChatClient reportChatClient(ChatModel chatModel, PromptGuardAdvisor promptGuardAdvisor) {
+  public ChatClient reportChatClient(
+      ChatModel chatModel, PromptGuardAdvisor promptGuardAdvisor, VectorStore vectorStore) {
+    QuestionAnswerAdvisor glossaryRagAdvisor =
+        QuestionAnswerAdvisor.builder(vectorStore)
+            .searchRequest(
+                SearchRequest.builder()
+                    .topK(8)
+                    .filterExpression(new FilterExpressionBuilder().eq("type", "glossary").build())
+                    .build())
+            .build();
     return ChatClient.builder(chatModel)
         .defaultSystem(new PromptTemplate(promptProperties.execReport()).render())
-        .defaultAdvisors(promptGuardAdvisor, new TokenUsageAdvisor(meterRegistry, "report"))
+        .defaultAdvisors(
+            promptGuardAdvisor, glossaryRagAdvisor, new TokenUsageAdvisor(meterRegistry, "report"))
         .build();
   }
 
