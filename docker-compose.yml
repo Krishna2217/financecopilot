@@ -20,7 +20,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      SPRING_PROFILES_ACTIVE: local
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
       DB_URL: jdbc:postgresql://db:5432/financecopilot
       # App runtime datasource: least-privilege finance_app role (created by Flyway below).
       DB_APP_USERNAME: ${DB_APP_USERNAME:-finance_app}
@@ -32,6 +32,8 @@ services:
       DB_SUPERUSER_PASSWORD: ${DB_SUPERUSER_PASSWORD:-postgres}
       AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT:-}
       AZURE_OPENAI_API_KEY: ${AZURE_OPENAI_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_CHAT_MODEL: ${OPENAI_CHAT_MODEL:-}
       APPLICATIONINSIGHTS_CONNECTION_STRING: ${APPLICATIONINSIGHTS_CONNECTION_STRING:-}
     depends_on:
       db:

@@ -104,6 +104,44 @@ logging:
     com.microsoft.financecopilot: DEBUG
 
 ---
+# Enables real chat against plain api.openai.com (not Azure) for local use. Combine with the
+# `local` profile for its datasource/flyway wiring, e.g. SPRING_PROFILES_ACTIVE=local,openai
+# — as the profile activated later, this document's keys (spring.autoconfigure.exclude,
+# app.ai.enabled) take precedence over local's, while local's datasource/flyway config (which
+# this profile doesn't redefine) still applies.
+spring:
+  config:
+    activate:
+      on-profile: openai
+  autoconfigure:
+    exclude:
+      - org.springframework.ai.model.azure.openai.autoconfigure.AzureOpenAiChatAutoConfiguration
+      - org.springframework.ai.model.azure.openai.autoconfigure.AzureOpenAiEmbeddingAutoConfiguration
+      - org.springframework.ai.model.azure.openai.autoconfigure.AzureOpenAiImageAutoConfiguration
+      - org.springframework.ai.model.azure.openai.autoconfigure.AzureOpenAiAudioTranscriptionAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiImageAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiAudioTranscriptionAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiAudioSpeechAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiModerationAutoConfiguration
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      chat:
+        options:
+          model: ${OPENAI_CHAT_MODEL:gpt-4o-mini}
+    vectorstore:
+      pgvector:
+        initialize-schema: true
+
+app:
+  ai:
+    enabled: true
+
+logging:
+  level:
+    com.microsoft.financecopilot: DEBUG
+
+---
 spring:
   config:
     activate:

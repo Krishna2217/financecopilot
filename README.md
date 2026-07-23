@@ -1,19 +1,54 @@
 # FinanceCopilot
 
+[![Backend CI](https://github.com/Krishna2217/financecopilot/actions/workflows/backend-ci.yml/badge.svg)](https://github.com/Krishna2217/financecopilot/actions/workflows/backend-ci.yml)
+[![Frontend CI](https://github.com/Krishna2217/financecopilot/actions/workflows/frontend-ci.yml/badge.svg)](https://github.com/Krishna2217/financecopilot/actions/workflows/frontend-ci.yml)
+
 AI Finance Analytics Platform — natural-language querying, anomaly detection, and
 executive reporting over financial data, built on Spring Boot 3 + Spring AI and a
 React/TypeScript frontend.
+
+## Contents
+
+- [Features](#features)
+- [Stack](#stack)
+- [Quick start](#quick-start)
+- [Enabling AI chat](#enabling-ai-chat)
+- [Building without Docker](#building-without-docker)
+- [Architecture](#architecture)
+- [API reference](#api-reference)
+- [Environment variables](#environment-variables)
+- [Runbook](#runbook)
+- [Threat model](#threat-model)
+- [Project status](#project-status)
+
+## Features
+
+- **Dashboard** — KPI summary (income, expenses, net cashflow, savings rate), spend-by-
+  category and cashflow-trend charts, all served by parameterized SQL (no AI involved, so
+  it works with zero LLM credentials).
+- **Chat (NL→SQL)** — ask a question in plain English, get back the generated SQL, the
+  model's rationale, the query result table, and a plain-language summary. Grounded in the
+  live database schema and a business glossary via retrieval-augmented generation (RAG).
+- **Anomalies** — statistical (z-score + IQR) detection of unusual monthly spend per
+  category, with an optional AI-generated explanation for any flagged anomaly.
+- **Executive reports** — a generated markdown report combining KPIs and top anomalies,
+  idempotent per `{year, month}`.
+- **History** — paginated log of every NL query run, with token/latency metrics and
+  one-click re-run.
 
 ## Stack
 
 - **Backend:** Java 21, Spring Boot 3, Spring Data JPA, PostgreSQL 16 + pgvector, Flyway,
   Actuator, springdoc-openapi
-- **AI:** Spring AI 1.0.x (`ChatClient`, structured output, `PgVectorStore`, advisors)
+- **AI:** Spring AI 1.0.x (`ChatClient`, structured output, `PgVectorStore`, advisors) —
+  Azure OpenAI or plain OpenAI as the model provider
 - **Frontend:** React 18 + Vite + TypeScript, TanStack Query, Tailwind, Recharts
+- **Testing:** JUnit 5, Mockito, Testcontainers (`pgvector/pgvector:pg17`), JaCoCo (≥75%
+  service-layer coverage gate)
 - **Ops:** Docker Compose, Azure Container Registry, Azure App Service, Azure Static Web
   Apps, Application Insights, GitHub Actions
 
-## Local development
+## Quick start
 
 ```bash
 cp .env.example .env
@@ -24,11 +59,42 @@ docker compose up --build
 - Swagger UI: http://localhost:8080/swagger-ui.html
 - Health: http://localhost:8080/actuator/health
 
+This boots on the `local` profile with AI disabled — no API key needed. Dashboard,
+Anomalies, and History all work; Chat and "Explain" return 404 until AI is enabled (see
+below).
+
 ```bash
 cd frontend
 npm install
 npm run dev   # http://localhost:5173, proxies /api to localhost:8080
 ```
+
+## Enabling AI chat
+
+Chat (NL→SQL), anomaly explanations, and executive reports need a real model provider. Two
+options, both configured in `.env`:
+
+**Plain OpenAI** (`api.openai.com`):
+```bash
+OPENAI_API_KEY=sk-...
+OPENAI_CHAT_MODEL=gpt-4o-mini   # optional, this is the default
+SPRING_PROFILES_ACTIVE=local,openai
+```
+
+**Azure OpenAI**:
+```bash
+AZURE_OPENAI_ENDPOINT=https://<resource>.openai.azure.com
+AZURE_OPENAI_API_KEY=...
+AZURE_OPENAI_CHAT_DEPLOYMENT=<your-deployment-name>
+SPRING_PROFILES_ACTIVE=dev
+```
+
+Then `docker compose up -d --build app` to pick up the new profile/env. The `openai`
+profile also drives schema RAG ingestion (embeddings) through the same OpenAI account — an
+account with no billing/credits will fail with `insufficient_quota` on both chat and
+embedding calls, and that failure currently crashes the app at startup rather than
+degrading gracefully (a known gap in `SchemaIngestionService`, not specific to either
+provider).
 
 ## Building without Docker
 
@@ -55,7 +121,7 @@ npm run dev   # http://localhost:5173, proxies /api to localhost:8080
                          │  repository                │
                          │                            │
                          │  ai/  ── ChatClient beans  │──────▶ Azure OpenAI
-                         │         (nl2sql, anomaly,  │        (or OpenAI fallback)
+                         │         (nl2sql, anomaly,  │        (or OpenAI)
                          │          report)            │
                          │  sql/  ── SqlSafetyValidator│
                          │         + SqlExecutor        │
@@ -81,6 +147,26 @@ publishes the frontend build to Static Web Apps. See
 secrets it requires — those Azure resources are not yet provisioned for this repository, so
 the deploy workflow's jobs will fail at the Azure login step until they exist.
 
+## API reference
+
+Full request/response examples are in Swagger UI (`/swagger-ui.html`) and the OpenAPI doc
+(`/v3/api-docs`). Summary:
+
+| Endpoint | AI? | Description |
+| --- | --- | --- |
+| `POST /api/v1/query` | Yes | NL question → generated SQL → executed result → summary |
+| `GET /api/v1/query/history` | No | Paginated query history |
+| `GET /api/v1/analytics/kpis` | No | Income/expenses/net cashflow/savings rate for a month |
+| `GET /api/v1/analytics/spend-by-category` | No | Spend breakdown by category |
+| `GET /api/v1/analytics/cashflow` | No | Monthly cashflow trend |
+| `GET /api/v1/analytics/trend` | No | Spend trend, optionally filtered by category |
+| `GET /api/v1/anomalies` | No | Z-score + IQR anomaly detection for a month |
+| `POST /api/v1/anomalies/{id}/explain` | Yes | AI explanation for a detected anomaly |
+| `POST /api/v1/reports/executive` | Yes | Generated executive markdown report |
+
+Endpoints marked "AI? Yes" require `app.ai.enabled=true` (see
+[Enabling AI chat](#enabling-ai-chat)) and 404 otherwise.
+
 ## Environment variables
 
 | Variable | Used by | Description |
@@ -89,10 +175,10 @@ the deploy workflow's jobs will fail at the Azure login step until they exist.
 | `DB_SUPERUSER` / `DB_SUPERUSER_PASSWORD` | Flyway | Elevated credentials used only for migrations, which create the `finance_ro`/`finance_app` roles themselves |
 | `DB_APP_USERNAME` / `DB_APP_PASSWORD` | app runtime | Least-privilege `finance_app` role — read/write on `app.*` only |
 | `DB_RO_USERNAME` / `DB_RO_PASSWORD` | `SqlExecutor` | `finance_ro` role — `SELECT`-only on `analytics.*`, the only role that ever runs AI-generated SQL |
-| `AZURE_OPENAI_ENDPOINT` / `AZURE_OPENAI_API_KEY` / `AZURE_OPENAI_CHAT_DEPLOYMENT` | `ChatClientConfig` | Primary model provider. Absent in the `local` profile, which disables `app.ai.enabled` and skips AI beans entirely |
-| `OPENAI_API_KEY` | `ChatClientConfig` (`openai` profile) | Fallback provider if Azure OpenAI is unavailable |
+| `AZURE_OPENAI_ENDPOINT` / `AZURE_OPENAI_API_KEY` / `AZURE_OPENAI_CHAT_DEPLOYMENT` | `ChatClientConfig` (`dev`/`prod` profiles) | Azure OpenAI provider |
+| `OPENAI_API_KEY` / `OPENAI_CHAT_MODEL` | `ChatClientConfig` (`openai` profile) | Plain OpenAI provider; model defaults to `gpt-4o-mini` |
 | `APPLICATIONINSIGHTS_CONNECTION_STRING` | App Insights Java agent | Self-disables gracefully (no telemetry, no crash) if unset |
-| `SPRING_PROFILES_ACTIVE` | Spring Boot | `local` \| `dev` \| `prod` |
+| `SPRING_PROFILES_ACTIVE` | Spring Boot | `local` (AI disabled) \| `local,openai` \| `dev` (Azure OpenAI) \| `prod` |
 
 GitHub Actions secrets required only by `deploy.yml` (not consumed by the app itself):
 `AZURE_CREDENTIALS`, `ACR_NAME`, `AZURE_WEBAPP_NAME`, `AZURE_RESOURCE_GROUP`,
@@ -115,14 +201,19 @@ GitHub Actions secrets required only by `deploy.yml` (not consumed by the app it
   validation can race Flyway's role-creation migration; `PrimaryDataSourceConfig` sets
   `initializationFailTimeout(-1)` to defer it — if this regresses, that's the first thing to
   check.
+- *App crashes at startup with an AI profile enabled*: check for `insufficient_quota` or
+  other embedding-call failures from `SchemaIngestionService` in the logs — it currently
+  propagates any embedding failure into a full application-context failure instead of
+  logging and continuing. Fall back to the `local` profile to get a healthy app while you
+  fix the provider-side issue (billing, quota, network).
 - *AI endpoints (`/api/v1/query`, anomaly `/explain`, `/api/v1/reports/executive`) 404*:
-  `app.ai.enabled` is false — this is the default in `local` with no Azure OpenAI credentials.
-  Confirmed by design; not a bug.
+  `app.ai.enabled` is false — this is the default in `local` with no Azure/OpenAI
+  credentials. Confirmed by design; not a bug. See [Enabling AI chat](#enabling-ai-chat).
 - *`sql.rejected.count` climbing*: check `SqlSafetyValidator` logs for the rejection reason
   (non-SELECT, disallowed table, missing `LIMIT`, etc.) before assuming an attack — the model
   can also just generate a bad query.
 - *Elevated `query.errors.count` / 429s from the model*: check the configured retry/timeout
-  `@ConfigurationProperties` for the AI use case and the upstream Azure OpenAI quota.
+  `@ConfigurationProperties` for the AI use case and the upstream provider's quota/billing.
 
 **Rollback**
 - App Service: redeploy the previous image tag from ACR (`docker push` tags images by
@@ -186,6 +277,13 @@ the other tier's grants.
 
 ## Project status
 
-Phases 0-9 complete (backend + frontend). Phase 10 (CI/CD workflows, this README) is in
-progress — see `CLAUDE.md` for the full phase plan. Deployed URLs will be added here once
-the Azure resources referenced by `deploy.yml` are provisioned.
+All 10 planned phases are complete: backend (0-8), frontend (9), and CI/CD + production
+docs (10). See `CLAUDE.md` for the full phase-by-phase history.
+
+Two things remain open, tracked here rather than as a phase:
+- **Azure deploy is unwired** — `deploy.yml` exists and is correct, but no ACR/App
+  Service/Static Web Apps resources are provisioned yet, so it fails at the Azure login
+  step. Deployed URLs will be added here once that's done.
+- **`SchemaIngestionService` isn't resilient to embedding failures** — an `insufficient_quota`
+  or transient network error during startup RAG ingestion currently crashes the whole app
+  instead of logging a warning and continuing without RAG grounding.
