@@ -19,6 +19,12 @@ import org.springframework.validation.annotation.Validated;
  * real application datasource, leaving finance_ro as the only {@code DataSource} bean in the
  * context. JPA/JdbcTemplate then silently run everything (including app.* writes) through
  * finance_ro, which has no grants there at all.
+ *
+ * <p>{@code initializationFailTimeout(-1)} defers Hikari's eager connection validation: Boot's
+ * {@code FlywayAutoConfiguration} resolves an {@code ObjectProvider<DataSource>} via {@code
+ * getIfAvailable()} even when {@code spring.flyway.*} is fully configured separately, and since
+ * this bean is {@code @Primary}, that resolution instantiates it — before Flyway has even run and
+ * created the finance_app role the connection string authenticates as.
  */
 @Configuration
 public class PrimaryDataSourceConfig {
@@ -31,6 +37,7 @@ public class PrimaryDataSourceConfig {
     config.setUsername(properties.username());
     config.setPassword(properties.password());
     config.setPoolName("finance-app-pool");
+    config.setInitializationFailTimeout(-1);
     return new HikariDataSource(config);
   }
 

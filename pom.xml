@@ -188,6 +188,33 @@
               <goal>report</goal>
             </goals>
           </execution>
+          <execution>
+            <!-- Non-negotiable: JaCoCo >= 75% on service packages. Scoped to *Service classes
+                 rather than the whole codebase, since DTOs/entities/config aren't meant to carry
+                 a coverage target. -->
+            <id>check-service-coverage</id>
+            <phase>verify</phase>
+            <goals>
+              <goal>check</goal>
+            </goals>
+            <configuration>
+              <rules>
+                <rule>
+                  <element>CLASS</element>
+                  <includes>
+                    <include>*Service</include>
+                  </includes>
+                  <limits>
+                    <limit>
+                      <counter>LINE</counter>
+                      <value>COVEREDRATIO</value>
+                      <minimum>0.75</minimum>
+                    </limit>
+                  </limits>
+                </rule>
+              </rules>
+            </configuration>
+          </execution>
         </executions>
       </plugin>
       <plugin>

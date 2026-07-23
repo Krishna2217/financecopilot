@@ -16,14 +16,22 @@ ALTER ROLE finance_app PASSWORD '${financeAppPassword}';
 -- Defense in depth alongside the app-level SET LOCAL statement_timeout in SqlExecutor.
 ALTER ROLE finance_ro SET statement_timeout = '5s';
 
-GRANT CONNECT ON DATABASE financecopilot TO finance_ro;
+-- GRANT ... ON DATABASE takes an identifier, not a string literal, so the current database name
+-- (whatever it's actually called — "financecopilot" in docker-compose, something else under
+-- Testcontainers) has to be interpolated via dynamic SQL rather than hardcoded.
+DO $$
+BEGIN
+    EXECUTE format('GRANT CONNECT ON DATABASE %I TO finance_ro', current_database());
+    EXECUTE format('GRANT CONNECT ON DATABASE %I TO finance_app', current_database());
+END
+$$;
+
 GRANT USAGE ON SCHEMA analytics TO finance_ro;
 GRANT SELECT ON ALL TABLES IN SCHEMA analytics TO finance_ro;
 ALTER DEFAULT PRIVILEGES IN SCHEMA analytics GRANT SELECT ON TABLES TO finance_ro;
 
 -- finance_app: the main application datasource. Full read/write on app.*, read-only on
 -- analytics.* (used by the non-AI analytics dashboard endpoints).
-GRANT CONNECT ON DATABASE financecopilot TO finance_app;
 GRANT USAGE ON SCHEMA analytics TO finance_app;
 GRANT SELECT ON ALL TABLES IN SCHEMA analytics TO finance_app;
 ALTER DEFAULT PRIVILEGES IN SCHEMA analytics GRANT SELECT ON TABLES TO finance_app;
